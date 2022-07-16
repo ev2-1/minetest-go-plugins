@@ -10,7 +10,7 @@ import (
 )
 
 // a list of all clients and their loaded chunks
-var loadedChunks map[string]map[pos]int64
+var loadedChunks map[*minetest.Client]map[pos]bool
 
 var (
 	MapBlkUpdateRate   int64 = 2         // in seconds
@@ -25,14 +25,12 @@ var grass mt.Content
 var exampleBlk mtmap.MapBlk
 
 func init() {
-	loadedChunks = make(map[string]map[pos]int64)
+	loadedChunks = make(map[*minetest.Client]map[pos]bool)
 	OpenDB(minetest.Path("/map.sqlite"))
 }
 
-var nimap map[string]mt.Content
-
 func PluginsLoaded(map[string]*plugin.Plugin) {
-	nimap = minetest.GetNIMap()
+	minetest.FillNameIdMap()
 
 	s := minetest.GetNodeDef("mcl_core:stone")
 	if s != nil {
@@ -63,15 +61,13 @@ func PosUpdate(c *minetest.Client, pos *mt.PlayerPos, LastUpdate int64) {
 		p := Pos2int(pos.Pos())
 		blkpos, _ := mt.Pos2Blkpos(p)
 
-		name := c.Name
-
 		for _, sp := range spiral(MapBlkUpdateRange) {
 			for i := int16(0); i < MapBlkUpdateRange; i++ {
 				// generate absolute position
 				ap := sp.add(blkpos).add([3]int16{0, heigthOff + i})
 
 				// load block
-				blk := LoadChunk(name, ap)
+				blk := LoadChunk(c, ap)
 
 				// if block has content; send to clt
 				if blk != nil {
@@ -85,14 +81,12 @@ func PosUpdate(c *minetest.Client, pos *mt.PlayerPos, LastUpdate int64) {
 	}
 }
 
-func LoadChunk(name string, p pos) *mt.MapBlk {
-	if loadedChunks[name] == nil {
-		loadedChunks[name] = make(map[pos]int64)
+func LoadChunk(c *minetest.Client, p pos) *mt.MapBlk {
+	if loadedChunks[c] == nil {
+		loadedChunks[c] = make(map[pos]bool)
 	}
 
-	t := time.Now().Unix()
-
-	if !(loadedChunks[name][p] < t-MapBlkUpdateRate) {
+	if loadedChunks[c][p] {
 		return nil
 	}
 
@@ -102,7 +96,7 @@ func LoadChunk(name string, p pos) *mt.MapBlk {
 		blkdata = &exampleBlk
 	}
 
-	loadedChunks[name][p] = t
+	loadedChunks[c][p] = true
 
 	return &blkdata.MapBlk
 }

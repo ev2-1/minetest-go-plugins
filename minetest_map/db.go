@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"github.com/EliasFleckenstein03/mtmap"
 	"github.com/anon55555/mt"
+	"github.com/ev2-1/minetest-go"
 	_ "github.com/mattn/go-sqlite3" // MIT licensed.
 	"log"
-
-	"github.com/EliasFleckenstein03/mtmap"
 )
 
 var db *sql.DB
@@ -49,13 +49,7 @@ func GetBlk(p [3]int16) *mtmap.MapBlk {
 	}
 
 	reader := bytes.NewReader(buf)
-
-	blk, err := mtmap.Deserialize(reader, nimap)
-	if err != nil {
-		log.Println("error", err)
-	}
-
-	return blk
+	return mtmap.Deserialize(reader, minetest.IdNodeMap)
 }
 
 func SetNode(pos [3]int16, node mt.Content) {
@@ -81,10 +75,7 @@ func SetBlk(p [3]int16, blk *mtmap.MapBlk) {
 
 	w := &bytes.Buffer{}
 
-	err = mtmap.Serialize(blk, w, nimap)
-	if err != nil {
-		panic(err)
-	}
+	mtmap.Serialize(blk, w, minetest.NodeIdMap)
 
 	pos := Blk2DBPos(p)
 
