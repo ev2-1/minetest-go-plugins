@@ -5,19 +5,39 @@ import (
 	"github.com/ev2-1/minetest-go"
 
 	"log"
+	"plugin"
 )
+
+var GetPos func(c *minetest.Client) mt.PlayerPos
+
+func PluginsLoaded(m map[string]*plugin.Plugin) {
+	tools, ok := m["tools"]
+	if !ok {
+		log.Fatal("No tools installed")
+	}
+
+	//func GetPos(c *minetest.Client) mt.PlayerPos {
+	f, err := tools.Lookup("GetPos")
+	if err != nil {
+		log.Fatal("Tool plugin does not expose 'GetPos' function")
+	}
+
+	gp, ok := f.(func(*minetest.Client) mt.PlayerPos)
+	if !ok {
+		log.Fatal("tools.GetPos has incompatible type")
+	}
+
+	GetPos = gp
+}
 
 func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 	switch cmd := pkt.Cmd.(type) {
 	case *mt.ToSrvInit:
-		log.Print(1)
-
 		if c.State > minetest.CsCreated {
 			c.Log("->", "duplicate init")
 
 			return
 		}
-		log.Print(2)
 
 		c.SetState(minetest.CsInit)
 
@@ -31,7 +51,6 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 
 			return
 		}
-		log.Print(3)
 
 		if cmd.MaxProtoVer < minetest.ProtoVer {
 			c.Log("<-", "invalid protoVer", cmd.MaxProtoVer)
@@ -43,7 +62,6 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 
 			return
 		}
-		log.Print(4)
 
 		if len(cmd.PlayerName) == 0 || len(cmd.PlayerName) > minetest.MaxPlayerNameLen {
 			c.Log("<-", "invalid player name length")
@@ -56,7 +74,6 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 			return
 		}
 		c.Name = cmd.PlayerName
-		log.Print(5)
 
 		if minetest.PlayerExists(c.Name) {
 			c.Log("<-", "player already joined")
@@ -68,10 +85,6 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 
 			return
 		}
-		log.Print(5)
-
-		minetest.RegisterPlayer(c)
-		log.Print(7)
 
 		// reply is always FirstSRP
 		c.Log("send to clt hello")
@@ -84,7 +97,7 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 
 	case *mt.ToSrvFirstSRP:
 		c.SendCmd(&mt.ToCltAcceptAuth{
-			PlayerPos:       mt.Pos{0, 100, 0},
+			PlayerPos:       GetPos(c).Pos(),
 			MapSeed:         1337,
 			SendInterval:    0.09,
 			SudoAuthMethods: mt.SRP,
@@ -97,8 +110,21 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 		c.SendNodeDefs()
 		c.SendAnnounceMedia()
 
+		minetest.InitClient(c)
+
 		// is ignored anyways
 		c.SendCmd(&mt.ToCltCSMRestrictionFlags{})
+
+	case *mt.ToSrvCltReady:
+		if c.State == minetest.CsActive {
+			minetest.RegisterPlayer(c)
+		} else {
+			minetest.CltLeave(&minetest.Leave{
+				Reason: mt.UnexpectedData,
+
+				Client: c,
+			})
+		}
 
 	default:
 		return
