@@ -7,10 +7,14 @@ import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
 	_ "github.com/mattn/go-sqlite3" // MIT licensed.
+
 	"log"
+	"sync"
 )
 
 var db *sql.DB
+
+var dbMu sync.Mutex
 
 var writeBlk *sql.Stmt
 var readBlk *sql.Stmt
@@ -39,7 +43,7 @@ func OpenDB(file string) (err error) {
 	return
 }
 
-func GetBlk(p [3]int16) *mtmap.MapBlk {
+func GetBlk(p [3]int16) <-chan *mtmap.MapBlk {
 	r := readBlk.QueryRow(Blk2DBPos(p))
 
 	var buf []byte
@@ -48,21 +52,16 @@ func GetBlk(p [3]int16) *mtmap.MapBlk {
 		return nil
 	}
 
-	reader := bytes.NewReader(buf)
-	return mtmap.Deserialize(reader, minetest.IdNodeMap)
-}
+	ch := make(chan *mtmap.MapBlk)
 
-func SetNode(pos [3]int16, node mt.Content) {
-	blk, i := mt.Pos2Blkpos(pos)
-	oldBlk := GetBlk(blk)
+	go func() {
+		reader := bytes.NewReader(buf)
 
-	if oldBlk == nil {
-		oldBlk = EmptyBlk()
-	}
+		ch <- mtmap.Deserialize(reader, minetest.IdNodeMap)
+		close(ch)
+	}()
 
-	oldBlk.Param0[i] = node
-
-	SetBlk(blk, oldBlk)
+	return ch
 }
 
 func SetBlk(p [3]int16, blk *mtmap.MapBlk) {
@@ -83,9 +82,6 @@ func SetBlk(p [3]int16, blk *mtmap.MapBlk) {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func Commit() {
 }
 
 func EmptyBlk() (blk *mtmap.MapBlk) {

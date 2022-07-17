@@ -20,7 +20,7 @@ func interact(m *mt.ToSrvInteract) {
 		switch m.Action {
 		case mt.Dig:
 		case mt.Dug:
-			SetNode(pos, mt.Air)
+			SetNode(pos, mt.Node{Param0: mt.Air})
 		}
 
 	default:

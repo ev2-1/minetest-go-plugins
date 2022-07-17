@@ -6,11 +6,15 @@ import (
 	"github.com/ev2-1/minetest-go"
 
 	"plugin"
-	"time"
+	"sync"
 )
 
 // a list of all clients and their loaded chunks
 var loadedChunks map[*minetest.Client]map[pos]bool
+var loadedChunksMu sync.RWMutex
+
+// configuration
+var load bool = true
 
 var (
 	MapBlkUpdateRate   int64 = 2         // in seconds
@@ -57,46 +61,20 @@ func PluginsLoaded(map[string]*plugin.Plugin) {
 }
 
 func PosUpdate(c *minetest.Client, pos *mt.PlayerPos, LastUpdate int64) {
-	if time.Now().Unix() < LastUpdate+MapBlkUpdateRate {
+	if load {
 		p := Pos2int(pos.Pos())
 		blkpos, _ := mt.Pos2Blkpos(p)
 
-		for _, sp := range spiral(MapBlkUpdateRange) {
-			for i := int16(0); i < MapBlkUpdateRange; i++ {
-				// generate absolute position
-				ap := sp.add(blkpos).add([3]int16{0, heigthOff + i})
+		go func() {
+			for _, sp := range spiral(MapBlkUpdateRange) {
+				for i := int16(0); i < MapBlkUpdateRange; i++ {
+					// generate absolute position
+					ap := sp.add(blkpos).add([3]int16{0, heigthOff + i})
 
-				// load block
-				blk := LoadChunk(c, ap)
-
-				// if block has content; send to clt
-				if blk != nil {
-					go c.SendCmd(&mt.ToCltBlkData{
-						Blkpos: ap,
-						Blk:    *blk,
-					})
+					// load block
+					LoadBlk(c, ap, false)
 				}
 			}
-		}
+		}()
 	}
-}
-
-func LoadChunk(c *minetest.Client, p pos) *mt.MapBlk {
-	if loadedChunks[c] == nil {
-		loadedChunks[c] = make(map[pos]bool)
-	}
-
-	if loadedChunks[c][p] {
-		return nil
-	}
-
-	blkdata := GetBlk(p)
-	if blkdata == nil {
-		SetBlk(p, &exampleBlk)
-		blkdata = &exampleBlk
-	}
-
-	loadedChunks[c][p] = true
-
-	return &blkdata.MapBlk
 }
