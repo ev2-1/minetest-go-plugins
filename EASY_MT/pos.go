@@ -54,13 +54,26 @@ func GetPos(c *minetest.Client) mt.PlayerPos {
 	posMu.RLock()
 	defer posMu.RUnlock()
 
+	if pos[c] == nil {
+		pos[c] = &mt.PlayerPos{}
+		pos[c].SetPos(mt.Pos{0, 100, 0})
+	}
+
 	return *pos[c]
 }
 
-// deleteClt
-func deleteClt(c *minetest.Client) {
+// SetPos sets position
+func SetPos(c *minetest.Client, p mt.PlayerPos) {
 	posMu.Lock()
 	defer posMu.Unlock()
 
-	delete(pos, c)
+	pos[c] = &p
+}
+
+// deleteClt
+func LeaveHook(l *minetest.Leave) {
+	posMu.Lock()
+	defer posMu.Unlock()
+
+	delete(pos, l.Client)
 }
