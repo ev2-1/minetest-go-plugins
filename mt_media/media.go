@@ -44,8 +44,6 @@ func init() {
 func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 	switch cmd := pkt.Cmd.(type) {
 	case *mt.ToSrvReqMedia:
-		log.Println("media request: ", cmd.Filenames)
-
 		// respond:
 		go func() {
 			res := mt.ToCltMedia{
