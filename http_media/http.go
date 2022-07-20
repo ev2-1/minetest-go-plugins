@@ -5,6 +5,7 @@ import (
 
 	"net/http"
 	"os"
+	"strings"
 )
 
 type fileHandler struct {
@@ -13,6 +14,8 @@ type fileHandler struct {
 
 func (fh *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	file := r.URL.RawQuery
+
+	file = strings.ReplaceAll(file, "..", "")
 
 	data, err := os.ReadFile(minetest.Path("hashfiles/" + file))
 	if err != nil {
