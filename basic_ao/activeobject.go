@@ -9,7 +9,7 @@ import (
 
 const (
 	GlobalAOIDmax = mt.AOID(2 ^ 32)
-	GlobalAOIDmin = mt.AOID(0)
+	GlobalAOIDmin = mt.AOID(1)
 )
 
 var aosMu sync.RWMutex

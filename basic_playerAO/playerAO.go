@@ -122,14 +122,14 @@ func initPlayer(clt *minetest.Client) {
 	var add []mt.AOAdd
 
 	// self:
-	newClt := playerAO(clt)
+	newClt := playerAO(clt, false)
 	newCmd := &mt.ToCltAORmAdd{
 		Add: []mt.AOAdd{newClt},
 	}
 
 	for c, _ := range playerInitialized {
 		if c != clt {
-			add = append(add, playerAO(c))
+			add = append(add, playerAO(c, false))
 
 			// send new client to players:
 			c.SendCmd(newCmd)
@@ -138,9 +138,9 @@ func initPlayer(clt *minetest.Client) {
 
 	clt.Log("sending", len(add), "adds")
 
-	// send new client own id
+	// TODO fix this: send new client own thing
 	ack, _ := clt.SendCmd(&mt.ToCltAORmAdd{
-		Add: []mt.AOAdd{newClt},
+		Add: []mt.AOAdd{playerAO(clt, true)},
 	})
 	<-ack
 
@@ -150,9 +150,16 @@ func initPlayer(clt *minetest.Client) {
 	})
 }
 
-func playerAO(c *minetest.Client) mt.AOAdd {
-	pos := GetPos(c)
-	aoid := playerInitialized[c]
+func playerAO(c *minetest.Client, self bool) mt.AOAdd {
+	var pos mt.PlayerPos
+	var aoid mt.AOID
+	if !self {
+		pos = GetPos(c)
+		aoid = playerInitialized[c]
+	} else {
+		aoid = 0
+	}
+
 	name := c.Name
 
 	return mt.AOAdd{
