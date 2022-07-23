@@ -98,6 +98,19 @@ func PosUpdate(clt *minetest.Client, p *mt.PlayerPos, _ int64) {
 				Msg: &mt.AOCmdPos{
 					Pos: mt.AOPos{
 						Pos: p.Pos(),
+						Rot: mt.Vec{0, p.Yaw()},
+
+						Interpolate: true,
+					},
+				},
+			},
+			mt.IDAOMsg{
+				ID: playerInitialized[clt],
+				Msg: &mt.AOCmdBonePos{
+					Bone: "Head_Control",
+					Pos: mt.AOBonePos{
+						Pos: mt.Vec{0, 6.3, 0},
+						Rot: mt.Vec{-p.Pitch(), 0, 0},
 					},
 				},
 			},
@@ -171,7 +184,7 @@ func playerAO(c *minetest.Client, self bool) mt.AOAdd {
 			ID: aoid,
 
 			Pos: pos.Pos(),
-			// TODO: Rot,
+			Rot: mt.Vec{0, pos.Yaw()},
 
 			HP: 20,
 
@@ -230,7 +243,7 @@ func playerAO(c *minetest.Client, self bool) mt.AOAdd {
 					Bone: "Head_Control",
 					Pos: mt.AOBonePos{
 						Pos: mt.Vec{0, 6.3, 0},
-						Rot: mt.Vec{0, 0, 0},
+						Rot: mt.Vec{-pos.Pitch(), 0, 0},
 					},
 				},
 				&mt.AOCmdBonePos{
