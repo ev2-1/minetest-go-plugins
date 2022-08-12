@@ -8,7 +8,7 @@ import (
 )
 
 func InitHook(c *minetest.Client) {
-	c.SendCmd(&mt.ToCltPrivs{})
+	c.SendCmd(&mt.ToCltPrivs{Privs: []string{"fly", "interact", "fast"}})
 	c.SendCmd(&mt.ToCltDetachedInv{})
 	c.SendCmd(&mt.ToCltMovement{
 		DefaultAccel: 2.4,
