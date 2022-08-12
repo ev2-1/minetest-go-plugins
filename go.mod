@@ -10,3 +10,8 @@ require (
 	github.com/ev2-1/minetest-go v0.0.0-20220717211212-c5435ce7fd40
 	github.com/mattn/go-sqlite3 v1.14.14
 )
+
+require (
+	github.com/g3n/engine v0.2.0 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
+)
