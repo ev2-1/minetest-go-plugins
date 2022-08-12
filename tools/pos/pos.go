@@ -1,11 +1,9 @@
-package main
+package pos
 
 import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
 
-	"log"
-	"plugin"
 	"sync"
 	"time"
 )
@@ -16,37 +14,37 @@ var posMu sync.RWMutex
 var posUpdate = make(map[*minetest.Client]int64)
 var posUpdateMu sync.RWMutex
 
-func PluginsLoaded(pl map[string]*plugin.Plugin) {
-	for _, p := range pl {
-		l, err := p.Lookup("PosUpdate")
-
-		if err == nil {
-			f, ok := l.(func(*minetest.Client, *mt.PlayerPos, int64))
-			if !ok {
-				log.Println("[EASY_MT] PosUpdate callback error, check plugin!")
-				return
-			}
-
-			posUpdaters = append(posUpdaters, f)
-		}
-	}
-}
-
+var posUpdatersMu sync.RWMutex
 var posUpdaters []func(c *minetest.Client, pos *mt.PlayerPos, lu int64)
 
-func updatePos(c *minetest.Client, p *mt.PlayerPos) {
+func RegisterPosUpdater(pu func(c *minetest.Client, pos *mt.PlayerPos, lu int64)) {
+	posUpdatersMu.Lock()
+	defer posUpdatersMu.Unlock()
+
+	posUpdaters = append(posUpdaters, pu)
+}
+
+func Update(c *minetest.Client, p *mt.PlayerPos) {
 	posUpdateMu.RLock()
 
+	time := time.Now().UnixMicro()
+	dtime := time - posUpdate[c]
+
+	posUpdatersMu.RLock()
 	for _, u := range posUpdaters {
-		u(c, p, posUpdate[c])
+		u(c, p, dtime)
 	}
+	posUpdatersMu.RUnlock()
 
 	posUpdateMu.RUnlock()
+
 	posUpdateMu.Lock()
-
-	posUpdate[c] = time.Now().Unix()
-
+	posUpdate[c] = time
 	posUpdateMu.Unlock()
+
+	posMu.Lock()
+	pos[c] = p
+	posMu.Unlock()
 }
 
 // GetPos returns pos os player / client
@@ -73,7 +71,10 @@ func SetPos(c *minetest.Client, p mt.PlayerPos) {
 // deleteClt
 func LeaveHook(l *minetest.Leave) {
 	posMu.Lock()
-	defer posMu.Unlock()
-
 	delete(pos, l.Client)
+	posMu.Unlock()
+
+	posUpdateMu.Lock()
+	delete(posUpdate, l.Client)
+	posUpdateMu.Unlock()
 }
