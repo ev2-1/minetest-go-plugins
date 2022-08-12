@@ -2,7 +2,7 @@ package main
 
 import (
 //	"github.com/ev2-1/minetest-go"
-	"github.com/ev2-1/minetest-go-plugins/basic_ao/api"
+	"github.com/ev2-1/minetest-go-plugins/ao_mgr/ao"
 )
 
 /*func Tick() {
