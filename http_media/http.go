@@ -49,9 +49,11 @@ func init() {
 
 	generateIndex()
 
+	ip := GetOutboundIP()
+
 	http.Handle("/mediafile", fh)
 	go http.ListenAndServe(":8081", nil)
 
 	// tell minetest where to find:
-	minetest.AddMediaURL(GetOutboundIP() + ":8081/mediafile?")
+	minetest.AddMediaURL(ip + ":8081/mediafile?")
 }
