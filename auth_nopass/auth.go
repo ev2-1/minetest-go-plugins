@@ -3,32 +3,8 @@ package main
 import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
-
-	"log"
-	"plugin"
+	"github.com/ev2-1/minetest-go-plugins/tools/pos"
 )
-
-var GetPos func(c *minetest.Client) mt.PlayerPos
-
-func PluginsLoaded(m map[string]*plugin.Plugin) {
-	tools, ok := m["tools"]
-	if !ok {
-		log.Fatal("No tools installed")
-	}
-
-	//func GetPos(c *minetest.Client) mt.PlayerPos {
-	f, err := tools.Lookup("GetPos")
-	if err != nil {
-		log.Fatal("Tool plugin does not expose 'GetPos' function")
-	}
-
-	gp, ok := f.(func(*minetest.Client) mt.PlayerPos)
-	if !ok {
-		log.Fatal("tools.GetPos has incompatible type")
-	}
-
-	GetPos = gp
-}
 
 func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 	switch cmd := pkt.Cmd.(type) {
@@ -97,7 +73,7 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 
 	case *mt.ToSrvFirstSRP:
 		c.SendCmd(&mt.ToCltAcceptAuth{
-			PlayerPos:       GetPos(c).Pos(),
+			PlayerPos:       pos.GetPos(c).Pos(),
 			MapSeed:         1337,
 			SendInterval:    0.09,
 			SudoAuthMethods: mt.SRP,
@@ -113,7 +89,7 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 		minetest.InitClient(c)
 
 		// is ignored anyways
-		c.SendCmd(&mt.ToCltCSMRestrictionFlags{})
+		c.SendCmd(&mt.ToCltCSMRestrictionFlags{MapRange: 3})
 
 	case *mt.ToSrvCltReady:
 		if c.State == minetest.CsActive {

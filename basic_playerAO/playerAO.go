@@ -3,21 +3,30 @@ package main
 import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
+	"github.com/ev2-1/minetest-go-plugins/tools/pos"
 
 	"errors"
+	"fmt"
 	"image/color"
 	"log"
 	"plugin"
 	"sync"
+	"time"
 )
 
 var errAOID = errors.New("cant assign AOID")
 
-var playerInitialized = make(map[*minetest.Client]mt.AOID)
+type playerData struct {
+	ID     mt.AOID
+	expire *bool // in unixseconds
+	killCh chan struct{}
+}
+
+var playerInitialized = make(map[*minetest.Client]*playerData)
 var playerInitializedMu sync.RWMutex
 
-var GetPos func(c *minetest.Client) mt.PlayerPos
 var _GetAOID func() *mt.AOID
+var FreeAOID func(mt.AOID)
 
 func GetAOID() mt.AOID {
 	id := _GetAOID()
@@ -29,33 +38,14 @@ func GetAOID() mt.AOID {
 }
 
 func PluginsLoaded(m map[string]*plugin.Plugin) {
-	tools, ok := m["tools"]
-	if !ok {
-		log.Fatal("No tools installed")
-	}
-
-	//func GetPos(c *minetest.Client) mt.PlayerPos {
-	f, err := tools.Lookup("GetPos")
-	if err != nil {
-		log.Fatal("Tool plugin does not expose 'GetPos' function")
-	}
-
-	gp, ok := f.(func(*minetest.Client) mt.PlayerPos)
-	if !ok {
-		log.Fatal("tools.GetPos has incompatible type")
-	}
-
-	GetPos = gp
-
 	ao, ok := m["ao"]
 	if !ok {
 		log.Fatal("AO manager not installed")
 	}
 
-	//func GetPos(c *minetest.Client) mt.PlayerPos {
-	f, err = ao.Lookup("GetAOID")
+	f, err := ao.Lookup("GetAOID")
 	if err != nil {
-		log.Fatal("Tool plugin does not expose 'GetPos' function")
+		log.Fatal("AO plugin does not expose 'GetPos' function")
 	}
 
 	ga, ok := f.(func() *mt.AOID)
@@ -64,37 +54,121 @@ func PluginsLoaded(m map[string]*plugin.Plugin) {
 	}
 
 	_GetAOID = ga
+
+	// func FreeAOID(mt.AOID)
+	f, err = ao.Lookup("FreeAOID")
+	if err != nil {
+		log.Fatal("AO plugin does not expose 'FreeAOID' function")
+	}
+
+	fa, ok := f.(func(mt.AOID))
+	if !ok {
+		log.Fatal("ao.mt.AOID has incompatible type")
+	}
+
+	FreeAOID = fa
 }
 
 func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
-	switch pkt.Cmd.(type) {
+	switch cmd := pkt.Cmd.(type) {
 	//	case *mt.ToSrvCltReady:
 	case *mt.ToSrvPlayerPos:
 		playerInitializedMu.RLock()
 		defer playerInitializedMu.RUnlock()
-		if _, ok := playerInitialized[c]; !ok {
+		if playerInitialized[c] == nil {
+			playerInitialized[c] = &playerData{}
 			go initPlayer(c)
+		}
+
+	case *mt.ToSrvChatMsg:
+		switch cmd.Msg { // return own pos
+		case "pos":
+			pp := pos.GetPos(c)
+			pos := pp.Pos()
+
+			c.SendCmd(&mt.ToCltChatMsg{
+				Type: mt.RawMsg,
+
+				Text: fmt.Sprintf("Your position: (%f, %f, %f) pitch: %f, yaw: %f",
+					pos[0], pos[1], pos[2],
+					pp.Pitch(), pp.Yaw(),
+				),
+
+				Timestamp: time.Now().Unix(),
+			})
+
+		case "activeobjects":
+			var text string
+
+			playerInitializedMu.RLock()
+			defer playerInitializedMu.RUnlock()
+
+			for c, pd := range playerInitialized {
+				text += fmt.Sprintf("%s=%d; ", c.Name, pd.ID)
+			}
+
+			c.SendCmd(&mt.ToCltChatMsg{
+				Type: mt.RawMsg,
+
+				Text: text,
+			})
 		}
 	}
 }
 
 func LeaveHook(l *minetest.Leave) {
-	playerInitializedMu.Lock()
-	defer playerInitializedMu.Unlock()
+	go func() {
+		playerInitializedMu.Lock()
+		defer playerInitializedMu.Unlock()
 
-	delete(playerInitialized, l.Client)
+		// check if player actually existed
+		data := playerInitialized[l.Client]
+		if data == nil {
+			return
+		}
 
-	// tell all clients player is gone now
+		// create pkt
+		remove := &mt.ToCltAORmAdd{
+			Remove: []mt.AOID{data.ID},
+		}
+
+		// tell all clients player is gone now
+		for clt := range playerInitialized {
+			if clt == l.Client { // skip self
+				continue
+			}
+
+			clt.SendCmd(remove)
+		}
+
+		// actually delete the AOID from all caches
+		FreeAOID(data.ID)
+		delete(playerInitialized, l.Client)
+	}()
 }
 
-func PosUpdate(clt *minetest.Client, p *mt.PlayerPos, _ int64) {
+func PosUpdate(clt *minetest.Client, p *mt.PlayerPos, dt int64) {
 	playerInitializedMu.RLock()
 	defer playerInitializedMu.RUnlock()
 
-	cmd := &mt.ToCltAOMsgs{
+	//clt.Log("last update is", dt, "old")
+
+	data := playerInitialized[clt]
+	if data == nil {
+		playerInitialized[clt] = &playerData{}
+		data = playerInitialized[clt]
+		go initPlayer(clt)
+	}
+
+	d := true
+	data.expire = &d // expires in one second
+
+	id := data.ID
+
+	cmd := mt.ToCltAOMsgs{
 		Msgs: []mt.IDAOMsg{
 			mt.IDAOMsg{
-				ID: playerInitialized[clt],
+				ID: id,
 				Msg: &mt.AOCmdPos{
 					Pos: mt.AOPos{
 						Pos: p.Pos(),
@@ -105,7 +179,7 @@ func PosUpdate(clt *minetest.Client, p *mt.PlayerPos, _ int64) {
 				},
 			},
 			mt.IDAOMsg{
-				ID: playerInitialized[clt],
+				ID: id,
 				Msg: &mt.AOCmdBonePos{
 					Bone: "Head_Control",
 					Pos: mt.AOBonePos{
@@ -118,21 +192,21 @@ func PosUpdate(clt *minetest.Client, p *mt.PlayerPos, _ int64) {
 	}
 
 	for c := range playerInitialized {
-		if c != clt {
-			c.SendCmd(cmd)
+		if c != clt && c.State == minetest.CsActive {
+			c.SendCmd(&cmd)
 		}
 	}
 }
 
 func initPlayer(clt *minetest.Client) {
 	playerInitializedMu.Lock()
-	playerInitialized[clt] = GetAOID()
+	playerInitialized[clt] = &playerData{ID: GetAOID()}
 	playerInitializedMu.Unlock()
 
 	playerInitializedMu.RLock()
 	defer playerInitializedMu.RUnlock()
 
-	var add []mt.AOAdd
+	add := make([]mt.AOAdd, len(playerInitialized)-1)
 
 	// self:
 	newClt := playerAO(clt, false)
@@ -149,26 +223,30 @@ func initPlayer(clt *minetest.Client) {
 		}
 	}
 
-	clt.Log("sending", len(add), "adds")
-
+	time.Sleep(time.Second)
+	
 	// TODO fix this: send new client own thing
 	ack, _ := clt.SendCmd(&mt.ToCltAORmAdd{
 		Add: []mt.AOAdd{playerAO(clt, true)},
 	})
 	<-ack
 
+	time.Sleep(time.Second)
+
 	// send new client all data:
-	clt.SendCmd(&mt.ToCltAORmAdd{
-		Add: add,
-	})
+	if len(add) != 0 {
+		clt.SendCmd(&mt.ToCltAORmAdd{
+			Add: add,
+		})
+	}
 }
 
 func playerAO(c *minetest.Client, self bool) mt.AOAdd {
-	var pos mt.PlayerPos
+	var p mt.PlayerPos
 	var aoid mt.AOID
 	if !self {
-		pos = GetPos(c)
-		aoid = playerInitialized[c]
+		p = pos.GetPos(c)
+		aoid = playerInitialized[c].ID
 	} else {
 		aoid = 0
 	}
@@ -183,8 +261,8 @@ func playerAO(c *minetest.Client, self bool) mt.AOAdd {
 
 			ID: aoid,
 
-			Pos: pos.Pos(),
-			Rot: mt.Vec{0, pos.Yaw()},
+			Pos: p.Pos(),
+			Rot: mt.Vec{0, p.Yaw()},
 
 			HP: 20,
 
@@ -243,7 +321,7 @@ func playerAO(c *minetest.Client, self bool) mt.AOAdd {
 					Bone: "Head_Control",
 					Pos: mt.AOBonePos{
 						Pos: mt.Vec{0, 6.3, 0},
-						Rot: mt.Vec{-pos.Pitch(), 0, 0},
+						Rot: mt.Vec{-p.Pitch(), 0, 0},
 					},
 				},
 				&mt.AOCmdBonePos{
