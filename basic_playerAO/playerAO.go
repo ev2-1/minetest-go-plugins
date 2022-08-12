@@ -4,12 +4,11 @@ import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
 	"github.com/ev2-1/minetest-go-plugins/tools/pos"
+	"github.com/ev2-1/minetest-go-plugins/ao_mgr/ao"
 
 	"errors"
 	"fmt"
 	"image/color"
-	"log"
-	"plugin"
 	"sync"
 	"time"
 )
@@ -25,48 +24,13 @@ type playerData struct {
 var playerInitialized = make(map[*minetest.Client]*playerData)
 var playerInitializedMu sync.RWMutex
 
-var _GetAOID func() *mt.AOID
-var FreeAOID func(mt.AOID)
-
 func GetAOID() mt.AOID {
-	id := _GetAOID()
-	if id == nil {
+	id := ao.GetAOID()
+	if id == 0 {
 		panic(errAOID)
 	}
 
-	return *id
-}
-
-func PluginsLoaded(m map[string]*plugin.Plugin) {
-	ao, ok := m["ao"]
-	if !ok {
-		log.Fatal("AO manager not installed")
-	}
-
-	f, err := ao.Lookup("GetAOID")
-	if err != nil {
-		log.Fatal("AO plugin does not expose 'GetPos' function")
-	}
-
-	ga, ok := f.(func() *mt.AOID)
-	if !ok {
-		log.Fatal("ao.GetAOID has incompatible type")
-	}
-
-	_GetAOID = ga
-
-	// func FreeAOID(mt.AOID)
-	f, err = ao.Lookup("FreeAOID")
-	if err != nil {
-		log.Fatal("AO plugin does not expose 'FreeAOID' function")
-	}
-
-	fa, ok := f.(func(mt.AOID))
-	if !ok {
-		log.Fatal("ao.mt.AOID has incompatible type")
-	}
-
-	FreeAOID = fa
+	return id
 }
 
 func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
@@ -142,7 +106,7 @@ func LeaveHook(l *minetest.Leave) {
 		}
 
 		// actually delete the AOID from all caches
-		FreeAOID(data.ID)
+		ao.FreeAOID(data.ID)
 		delete(playerInitialized, l.Client)
 	}()
 }
