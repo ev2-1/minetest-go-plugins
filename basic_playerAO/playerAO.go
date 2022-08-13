@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
-	"github.com/ev2-1/minetest-go-plugins/tools/pos"
 	"github.com/ev2-1/minetest-go-plugins/ao_mgr/ao"
+	"github.com/ev2-1/minetest-go-plugins/tools/pos"
 
 	"errors"
 	"fmt"
@@ -188,7 +188,7 @@ func initPlayer(clt *minetest.Client) {
 	}
 
 	time.Sleep(time.Second)
-	
+
 	// TODO fix this: send new client own thing
 	ack, _ := clt.SendCmd(&mt.ToCltAORmAdd{
 		Add: []mt.AOAdd{playerAO(clt, true)},
