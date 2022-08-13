@@ -32,19 +32,40 @@ func (mp *MsgPacket) MarshalJSON() (data []byte, err error) {
 }
 
 func PacketPre(c *minetest.Client, cmd mt.Cmd) bool {
-	if _, ok := cmd.(*mt.ToCltBlkData); ok {
+	var skipCmd bool
+
+	switch cmd.(type) {
+	case *mt.ToCltMedia:
+		skipCmd = true
+
+	// we dont want to send those (too many of them)
+	case *mt.ToCltBlkData:
 		return false
 	}
 
-	j, err := json.Marshal(MsgPacket{
-		Packet: Packet{
-			Type: fmt.Sprintf("%T", cmd)[4:],
-			Srv:  true,
-			Clt:  c.RemoteAddr().String(),
-			Name: c.Name,
-			Cmd:  cmd,
-		},
-	})
+	var j []byte
+	var err error
+
+	if skipCmd {
+		j, err = json.Marshal(MsgPacket{
+			Packet: Packet{
+				Type: fmt.Sprintf("%T", cmd)[4:],
+				Srv:  true,
+				Clt:  c.RemoteAddr().String(),
+				Name: c.Name,
+			},
+		})
+	} else {
+		j, err = json.Marshal(MsgPacket{
+			Packet: Packet{
+				Type: fmt.Sprintf("%T", cmd)[4:],
+				Srv:  true,
+				Clt:  c.RemoteAddr().String(),
+				Name: c.Name,
+				Cmd:  cmd,
+			},
+		})
+	}
 
 	if err != nil {
 		fmt.Println(err)

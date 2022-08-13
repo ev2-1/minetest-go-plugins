@@ -73,8 +73,8 @@ $(document).ready(function () {
 	pktselector = $('#packetselect')
 	playerselector = $('#playerselect')
 
-	addpkt("all")
-	addplayer(".all")
+	//addpkt("all")
+	//addplayer(".all")
 
 	playerselector.on("change", updatefilter)
 	pktselector.on("change", updatefilter)
@@ -83,10 +83,7 @@ $(document).ready(function () {
 
 function updatefilter() {
 	resetpkts()
-	sel = pktselector.val()
-	if (!sel.includes("all")) {
-		filterpkts(playerselector.val(), pktselector.val())
-	}
+	filterpkts(playerselector.val(), pktselector.val())
 }
 
 { // pkts
@@ -109,21 +106,14 @@ function updatefilter() {
 			pkts.push(name)
 			pkts.sort()
 
+			pktselector.prepend(`<option value="${name}" selected>${name}</option>\n`)
+
 			updatepkt()
 			//PaymentRequestUpdateEvent
 		}
 	}
 
 	function updatepkt() {
-		let s = pktselector[0]
-
-		// reset thing
-		s.innerHTML = ""
-
-		pkts.forEach(str => {
-			s.innerHTML += `<option value="${str}"${str == "all" ? " selected" : ""}>${str}</option>\n`
-		})
-
 		pktselector.multiselect('rebuild');
 	}
 }
@@ -147,7 +137,7 @@ function updatefilter() {
 		if (!players.includes(name)) {
 			players.push(name)
 
-			playerselector.append(`<option value="${name}">${name}</option>\n`)
+			playerselector.append(`<option value="${name}" selected>${name}</option>\n`)
 
 			updateplayers()
 		}
@@ -291,8 +281,6 @@ function packet(data) {
 		case "ToSrvPlayerPos":
 			icon = "geo-alt"
 
-			console.log(data.Cmd.Pos.Pos100)
-
 			content = [
 				{ type: "txt", text: `Pos: ${pos(data.Cmd.Pos.Pos100)}`, title: "Pos100" },
 				{ type: "txt", text: `<i class="bi bi-speedometer"></i>&nbsp; ${pos(data.Cmd.Pos.Pos100)}`, title: "Vel100" },
@@ -352,6 +340,18 @@ function packet(data) {
 			if(data.Cmd.Reconnect)
 				content.push({type:"icon", data: "arrow-clockwise"})
 
+			break
+
+		case "ToCltBlkData":
+			icon = "box"
+
+			content = [ // TODO: server side send pos
+				{type:"txt", text: `<i class="bi bi-geo-alt">`},
+			]
+			break
+
+		case "ToSrvGotBlks":
+			// ok
 			break
 
 		default:
