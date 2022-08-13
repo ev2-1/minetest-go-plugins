@@ -1,4 +1,4 @@
-package main
+package mmap
 
 type pos [3]int16
 

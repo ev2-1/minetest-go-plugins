@@ -1,15 +1,11 @@
-package main
+package mmap
 
 import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
 
-	"fmt"
-	"log"
+	"github.com/EliasFleckenstein03/mtmap"
 )
-
-// define plugin name for function calls
-var Name = "map"
 
 // LoadBlk sends a minetest.Client a blk at pos
 // TODO: if force is false, will only update every 10 seconds (atm sends only once (per client))
@@ -50,8 +46,8 @@ func LoadBlk(c *minetest.Client, p [3]int16, force bool) {
 	return
 }
 
-// func GetBlk(p [3]int16) *mtmap.MapBlk {
-// func SetBlk(p [3]int16, blk *mtmap.MapBlk) {
+// func GetBlk(p [3]int16) *mtmap.MapBlk)
+// func SetBlk(p [3]int16, blk *mtmap.MapBlk)
 // are in db.go
 
 // GetNode returns the given mt.Content at a specified spot
@@ -79,6 +75,8 @@ func SetNode(pos [3]int16, node mt.Node) {
 
 	if oldBlk == nil {
 		oldBlk = EmptyBlk()
+
+		oldBlk.Flags |= mtmap.NotGenerated
 	}
 
 	oldBlk.Param0[i] = node.Param0
@@ -89,25 +87,13 @@ func SetNode(pos [3]int16, node mt.Node) {
 	SetBlk(blk, oldBlk)
 }
 
-// Set sets a configuration variable
-func Set(field string, value any) {
-	switch field {
-	case "Load": // disable incl. block loading alg
-		l, ok := value.(bool)
-		if !ok {
-			log.Fatal("[minetest_map] Configuration field 'Load' has type 'bool' not", fmt.Sprintf("'%T'", value))
-		}
-
-		load = l
-	}
-}
-
 // GetConfigFields returns a list of configuration fields incl a description
-func GetConfigFileds() []struct{ Name, Desc string } {
+// TODO: write configuration lib
+/*func GetConfigFileds() []struct{ Name, Desc string } {
 	return []struct{ Name, Desc string }{
 		struct{ Name, Desc string }{
 			Name: "Load",
 			Desc: "bool; if false disables spiral loading alogorithm; default true",
 		},
 	}
-}
+}*/

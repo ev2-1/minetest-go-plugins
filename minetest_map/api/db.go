@@ -1,4 +1,4 @@
-package main
+package mmap
 
 import (
 	"bytes"
@@ -84,9 +84,11 @@ func SetBlk(p [3]int16, blk *mtmap.MapBlk) {
 	}
 }
 
+// EmptyBlk returns a empty MapBlock containing fully lit air
 func EmptyBlk() (blk *mtmap.MapBlk) {
 	for k := range blk.Param0 {
 		blk.Param0[k] = mt.Air
+		blk.Param1[k] = 255
 	}
 
 	return

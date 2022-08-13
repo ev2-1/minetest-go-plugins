@@ -1,25 +1,23 @@
-package main
+package mmap
 
 import (
 	"github.com/EliasFleckenstein03/mtmap"
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
 
-	"plugin"
 	"sync"
+	"time"
 )
 
 // a list of all clients and their loaded chunks
 var loadedChunks map[*minetest.Client]map[pos]bool
 var loadedChunksMu sync.RWMutex
 
-// configuration
-var load bool = true
-
 var (
-	MapBlkUpdateRate   int64 = 2         // in seconds
-	MapBlkUpdateRange        = int16(10) // in mapblks
-	MapBlkUpdateHeight       = int16(5)  // in mapblks
+	MapBlkUpdateRate, _ = time.ParseDuration("2s") // in seconds
+
+	MapBlkUpdateRange  = int16(10) // in mapblks
+	MapBlkUpdateHeight = int16(5)  // in mapblks
 
 	heigthOff = -MapBlkUpdateHeight / 2
 )
@@ -33,9 +31,8 @@ func init() {
 	OpenDB(minetest.Path("/map.sqlite"))
 }
 
-func PluginsLoaded(map[string]*plugin.Plugin) {
-	minetest.FillNameIdMap()
-
+// DO NOT CALL IF YOU DONT KNOW WHAT YOUR DOING
+func PluginsLoaded() {
 	s := minetest.GetNodeDef("mcl_core:stone")
 	if s != nil {
 		stone = s.Param0
@@ -60,21 +57,20 @@ func PluginsLoaded(map[string]*plugin.Plugin) {
 	exampleBlk.Param0[4096/2+16/2] = grass // some wool
 }
 
+// DO NOT CALL IF YOU DONT KNOW WHAT YOUR DOING
 func PosUpdate(c *minetest.Client, pos *mt.PlayerPos, LastUpdate int64) {
-	if load {
-		p := Pos2int(pos.Pos())
-		blkpos, _ := mt.Pos2Blkpos(p)
+	p := Pos2int(pos.Pos())
+	blkpos, _ := mt.Pos2Blkpos(p)
 
-		go func() {
-			for _, sp := range spiral(MapBlkUpdateRange) {
-				for i := int16(0); i < MapBlkUpdateRange; i++ {
-					// generate absolute position
-					ap := sp.add(blkpos).add([3]int16{0, heigthOff + i})
+	go func() {
+		for _, sp := range spiral(MapBlkUpdateRange) {
+			for i := int16(0); i < MapBlkUpdateRange; i++ {
+				// generate absolute position
+				ap := sp.add(blkpos).add([3]int16{0, heigthOff + i})
 
-					// load block
-					LoadBlk(c, ap, false)
-				}
+				// load block
+				LoadBlk(c, ap, false)
 			}
-		}()
-	}
+		}
+	}()
 }

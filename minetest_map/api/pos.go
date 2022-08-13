@@ -1,4 +1,4 @@
-package main
+package mmap
 
 import (
 	"github.com/anon55555/mt"
