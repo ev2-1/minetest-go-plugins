@@ -2,7 +2,7 @@ package ao
 
 import (
 	"github.com/anon55555/mt"
-//	"github.com/ev2-1/minetest-go-plugins/tools/pos"
+	//	"github.com/ev2-1/minetest-go-plugins/tools/pos"
 
 	"github.com/g3n/engine/math32"
 )
@@ -22,16 +22,42 @@ func FilterRelevantAdds(pos mt.Pos, adds []mt.AOAdd) (r []mt.AOAdd) {
 	return
 }
 
+func FilterRelevantRms(pos mt.Pos, rms []mt.AOID) (r []mt.AOID) {
+	for _, rm := range rms {
+		f, p := GetAOPos(rm)
+		if !f {
+			break
+		}
+
+		if Distance(mt.Vec(pos), mt.Vec(p.Pos)) > ReleventDistance {
+			r = append(r, rm)
+		}
+	}
+
+	return
+}
+
+func FilterRelevantMsgs(pos mt.Pos, msgs []mt.IDAOMsg) (r []mt.IDAOMsg) {
+	for _, msg := range msgs {
+		f, p := GetAOPos(msg.ID)
+		if !f {
+			break
+		}
+
+		if Distance(mt.Vec(pos), mt.Vec(p.Pos)) > ReleventDistance {
+			r = append(r, msg)
+		}
+	}
+
+	return
+}
+
 func Distance(a, b mt.Vec) float32 {
 	var number float32
 
 	number += math32.Pow((a[0] - b[0]), 2)
 	number += math32.Pow((a[1] - b[1]), 2)
 	number += math32.Pow((a[2] - b[2]), 2)
-	
 
 	return math32.Sqrt(number)
 }
-
-func FilterRelevantRms() {}
-func FilterRelevantMsgs() {}

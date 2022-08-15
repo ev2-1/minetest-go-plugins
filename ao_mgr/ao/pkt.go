@@ -3,78 +3,78 @@ package ao
 import (
 	"github.com/anon55555/mt"
 	"github.com/ev2-1/minetest-go"
+	"github.com/ev2-1/minetest-go-plugins/tools/pos"
 
 	"sync"
 )
 
 var (
 	globalMsgsMu sync.RWMutex
-	globalMsgs []mt.IDAOMsg
-	cltMsgsMu sync.RWMutex
-	cltMsgs map[*minetest.Client][]mt.IDAOMsg
+	globalMsgs   []mt.IDAOMsg
+	cltMsgsMu    sync.RWMutex
+	cltMsgs      map[*minetest.Client][]mt.IDAOMsg
 
-
-	globalAddMu sync.RWMutex
-	globalAdd []mt.AOAdd
-	cltAddMu sync.RWMutex
-	cltAdd map[*minetest.Client][]mt.AOAdd
-
-	globalRmMu sync.RWMutex
-	globalRm []mt.AOID
-	cltRmMu sync.RWMutex
-	cltRm map[*minetest.Client][]mt.AOID
+	// the global queue for AOs to be deleted
+	rmsMu sync.RWMutex
+	rms   []mt.AOID
 )
 
-func SendPkts() {
-	// adds / rm
-	globalAddMu.RLock()
-	cltAddMu.RLock()
+func (cd *ClientData) doAddQueue() (a []mt.AOAdd) {
+	if len(cd.queueAdd) == 0 {
+		return
+	}
 
-	globalRmMu.RLock()
-	cltRmMu.RLock()
-	for clt := range minetest.Clts() {
-		clt.SendCmd(&mt.ToCltAORmAdd{
-			Add: append(globalAdd, cltAdd[clt]...),
-			Remove: append(globalRm, cltRm[clt]...),
+	activeObjectsMu.RLock()
+	for _, id := range cd.queueAdd {
+		a = append(a, mt.AOAdd{
+			ID:       id,
+			InitData: activeObjects[id].InitPkt(id, cd.clt),
 		})
 	}
-	globalAddMu.RUnlock()
-	cltAddMu.RUnlock()
+	activeObjectsMu.RUnlock()
 
-	globalRmMu.RUnlock()
-	cltRmMu.RUnlock()
-	
-	globalAddMu.Lock()
-	if len(globalAdd) != 0 {
-		globalAdd = make([]mt.AOAdd, 0)
-	}
-	globalAddMu.Unlock()
+	return
+}
 
-	globalRmMu.Lock()
-	if len(globalRm) != 0 {
-		globalRm = make([]mt.AOID, 0)
-	}
-	globalRmMu.Unlock()
+// DO NOT CALL IF YOU DONT KNOW WHAT YOUR DOING
+func SendPkts() {
+	// adds / rm
+	clientsMu.RLock()
 
-	cltAddMu.Lock()
-	if len(cltAdd) != 0 {
-		cltAdd = make(map[*minetest.Client][]mt.AOAdd)
-	}
-	cltAddMu.Unlock()
+	for clt, cd := range clients {
+		add := cd.doAddQueue()
+		rm := cd.queueRm
 
-	cltRmMu.Lock()
-	if len(cltRm) != 0 {
-		cltRm = make(map[*minetest.Client][]mt.AOID)
+		if len(add) != 0 || len(rm) != 0 {
+			clt.SendCmd(&mt.ToCltAORmAdd{
+				Add:    add,
+				Remove: rm,
+			})
+
+			// clear data (if needed)
+			if len(add) != 0 {
+				cd.queueAdd = nil
+			}
+
+			if len(rm) != 0 {
+				cd.queueRm = nil
+			}
+		}
 	}
-	cltRmMu.Unlock()
+
+	clientsMu.RUnlock()
 
 	// msgs
 	globalMsgsMu.RLock()
 	cltMsgsMu.RLock()
 	for clt := range minetest.Clts() {
-		clt.SendCmd(&mt.ToCltAOMsgs{
-			Msgs: append(globalMsgs, cltMsgs[clt]...),
-		})
+		msgs := FilterRelevantMsgs(pos.GetPos(clt).Pos(), append(globalMsgs, cltMsgs[clt]...))
+
+		if len(msgs) != 0 {
+			clt.SendCmd(&mt.ToCltAOMsgs{
+				Msgs: msgs,
+			})
+		}
 	}
 	globalMsgsMu.RUnlock()
 	cltMsgsMu.RUnlock()
@@ -91,5 +91,3 @@ func SendPkts() {
 	}
 	cltMsgsMu.Unlock()
 }
-
-

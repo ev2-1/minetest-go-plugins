@@ -2,6 +2,9 @@ package ao
 
 import (
 	"github.com/anon55555/mt"
+	"github.com/ev2-1/minetest-go"
+
+	"fmt"
 )
 
 // the first one is reserved for the playerAOID
@@ -29,30 +32,52 @@ func FreeAOID(id mt.AOID) {
 	delete(aos, id)
 }
 
-func AddAO(data mt.AOInitData) mt.AOID {
-	if data.ID == 0 {
-		data.ID = GetAOID()
+func RmAO(ids ...mt.AOID) {
+	for _, id := range ids {
+		if id == 0 {
+			continue
+		}
+
+		FreeAOID(id)
+		rmQueue = append(rmQueue, id)
+	}
+}
+
+func AOMsg(msgs ...mt.IDAOMsg) {
+	for _, msg := range msgs {
+		if msg.ID == 0 {
+			continue
+		}
+
+		globalMsgsMu.RLock()
+		globalMsgs = append(globalMsgs, msg)
+		globalMsgsMu.RUnlock()
+	}
+}
+
+// - abstr -
+
+// RegisterAO registers a initialized ActiveObject
+func RegisterAO(ao ActiveObject) mt.AOID {
+	if ao.GetID() == 0 {
+		ao.SetID(GetAOID())
 	}
 
-	globalAdd = append(globalAdd, mt.AOAdd{
-		ID: data.ID,
-		InitData: data,
-	})
-
-	return data.ID
-}
-
-func RmAO(id mt.AOID) {
-	if id == 0 { return }
-
 	activeObjectsMu.Lock()
-	delete(activeObjects, id)
+	activeObjects[ao.GetID()] = ao
 	activeObjectsMu.Unlock()
 
-	FreeAOID(id)
-	globalRm = append(globalRm, id)
+	return ao.GetID()
 }
 
-func AOMsg(msg... []mt.IDAOMsg) {
-	
+var ao0maker func(clt *minetest.Client) mt.AOInitData
+
+// Register player AO0 / self
+// RegisterSelfAOMaker is used to register the AO maker for each client
+func RegisterAO0Maker(f func(clt *minetest.Client) mt.AOInitData) {
+	if ao0maker == nil {
+		ao0maker = f
+	} else {
+		panic(fmt.Errorf("[ao_mgr] Repeated AO0Maker registration attempt."))
+	}
 }
