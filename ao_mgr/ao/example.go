@@ -59,6 +59,10 @@ func (ao *ActiveObjectS) InitPkt(id mt.AOID, clt *minetest.Client) mt.AOInitData
 		msgs = append(msgs, msgss...)
 	}
 
+	appendM(&mt.AOCmdProps{
+		Props: ao.GetProps(),
+	})
+
 	anim := ao.GetAnimState()
 	if anim.Active {
 		appendM(&mt.AOCmdAnim{
