@@ -91,17 +91,6 @@ func ProcessPkt(c *minetest.Client, pkt *mt.Pkt) {
 		// is ignored anyways
 		c.SendCmd(&mt.ToCltCSMRestrictionFlags{MapRange: 3})
 
-	case *mt.ToSrvCltReady:
-		if c.State == minetest.CsActive {
-			minetest.RegisterPlayer(c)
-		} else {
-			minetest.CltLeave(&minetest.Leave{
-				Reason: mt.UnexpectedData,
-
-				Client: c,
-			})
-		}
-
 	default:
 		return
 	}
