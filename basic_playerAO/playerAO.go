@@ -162,6 +162,12 @@ func PosUpdate(clt *minetest.Client, p *mt.PlayerPos, dt int64) {
 	}
 }
 
+func init() {
+	ao.RegisterAO0Maker(func(clt *minetest.Client) mt.AOInitData {
+		return playerAO(clt, true).InitData
+	})
+}
+
 func initPlayer(clt *minetest.Client) {
 	playerInitializedMu.Lock()
 	playerInitialized[clt] = &playerData{ID: GetAOID()}
@@ -190,10 +196,10 @@ func initPlayer(clt *minetest.Client) {
 	time.Sleep(time.Second)
 
 	// TODO fix this: send new client own thing
-	ack, _ := clt.SendCmd(&mt.ToCltAORmAdd{
-		Add: []mt.AOAdd{playerAO(clt, true)},
-	})
-	<-ack
+	//ack, _ := clt.SendCmd(&mt.ToCltAORmAdd{
+	//	Add: []mt.AOAdd{playerAO(clt, true)},
+	//})
+	//<-ack
 
 	time.Sleep(time.Second)
 
